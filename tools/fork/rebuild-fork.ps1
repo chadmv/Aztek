@@ -2,7 +2,7 @@
 # that has an open pull request upstream, then every origin/pr/* and origin/fork/* branch, merged in that order.
 #
 # Branches:
-#   main      a copy of upstream/main; never committed to
+#   main      a copy of upstream/main, the fork's default branch; never committed to. This script syncs it.
 #   pr/*      one change for one upstream pull request, cut from upstream/main
 #   fork/*    changes kept on this fork only (this script lives on fork/tools)
 #   chad      the integration branch this script writes; never edited by hand
@@ -25,6 +25,14 @@ $ErrorActionPreference = 'Stop'
 function Invoke-Git {
     git @args
     if ($LASTEXITCODE -ne 0) { throw "git $($args -join ' ') failed" }
+}
+
+# The fork's main is the default branch, so new worktree sessions start from it: keep it at upstream/main.
+# Pushing it runs build.yml on the fork when Actions are on there.
+function Sync-Main {
+    if (-not $NoPush) { Invoke-Git push origin upstream/main:refs/heads/main }
+    git fetch -q . upstream/main:main
+    if ($LASTEXITCODE -ne 0) { Write-Host "== local main not moved (checked out, or not a fast-forward)" }
 }
 
 function Get-OpenPrBranches {
@@ -62,6 +70,8 @@ Invoke-Git config rerere.enabled true
 Invoke-Git config rerere.autoupdate true
 Invoke-Git fetch upstream
 Invoke-Git fetch origin --prune
+
+Sync-Main
 
 $topics = @(Get-OpenPrBranches) + @(Get-TopicBranches) | Select-Object -Unique
 Invoke-Git switch --no-track -C $Branch upstream/main
